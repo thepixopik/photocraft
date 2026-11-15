@@ -270,13 +270,14 @@ pub(crate) struct CommandsArgs {
     pub(crate) filter: Option<String>,
 }
 
-/// Run the MCP server on stdio: in the open PhotoCraft window when the person lets agents use it
-/// (ArtCraft Launcher › Settings › AI agents), otherwise headless
+/// Run the MCP server on stdio or Streamable HTTP: in the open PhotoCraft window when the person
+/// lets agents use it (ArtCraft Launcher › Settings › AI agents), otherwise headless
 ///
 /// The open window is found again on every call, with no port or token to configure. Without
 /// the person's consent, or with --headless, it runs headless: each automation root grants that
 /// direction of file access; an omitted root denies it. Prefer absolute root paths in MCP client
-/// configurations. Bridge (--bridge or PHOTOCRAFT_CONTROL_PORT): a running `photocraft --control
+/// configurations. Pass --http <HOST:PORT> to listen over Streamable HTTP (`/mcp` and `/health`)
+/// instead of stdio. Bridge (--bridge or PHOTOCRAFT_CONTROL_PORT): a running `photocraft --control
 /// <port>`; set the roots on the desktop app, root flags are refused, and the token flags require
 /// it.
 #[derive(Args)]
@@ -295,6 +296,12 @@ pub(crate) struct McpArgs {
     /// `--bridge` came from PHOTOCRAFT_CONTROL_PORT, set by [`parse`].
     #[arg(skip)]
     pub(crate) bridge_from_env: bool,
+    /// Listen over Streamable HTTP (`/mcp` and `/health`) on this address instead of stdio
+    #[arg(long, value_name = "HOST:PORT")]
+    pub(crate) http: Option<String>,
+    /// Optional Bearer token required on `/mcp` Streamable HTTP requests
+    #[arg(long, value_name = "TOKEN", env = "PHOTOCRAFT_MCP_TOKEN", hide_env_values = true)]
+    pub(crate) http_token: Option<String>,
     #[command(flatten)]
     pub(crate) gpu: GpuArgs,
     #[command(flatten)]
@@ -518,6 +525,12 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Cli, clap::Error> {
             check_gpu_env(&mut cmd, m)?;
         }
         (Command::Mcp(a), Some((name, m))) => {
+            if m.value_source("http_token") == Some(ValueSource::CommandLine) && a.http.is_none() {
+                if let Some(sub) = cmd.find_subcommand_mut(name) {
+                    return Err(ServerOptionError::NeedsTransport { flag: "--http-token", transport: "--http" }.into_clap(sub));
+                }
+                return Err(ServerOptionError::NeedsTransport { flag: "--http-token", transport: "--http" }.into_clap(&mut cmd));
+            }
             if a.headless {
                 // `--headless` reaches no app. Given on the command line, the bridge's flags
                 // conflict; exported for another tool, they are left alone.

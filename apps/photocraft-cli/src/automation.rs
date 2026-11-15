@@ -96,6 +96,11 @@ pub(crate) fn mcp(a: &McpArgs, err: &mut dyn Write) -> Result {
         }
     };
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    if let Some(addr) = &a.http {
+        let cfg = photocraft_automation::http::HttpConfig::with_token(a.http_token.clone());
+        let _ = writeln!(err, "photocraft-cli mcp listening on http://{addr}/mcp");
+        return Ok(rt.block_on(photocraft_automation::http::serve(addr.as_str(), cfg, server))?);
+    }
     Ok(rt.block_on(server.serve_stdio())?)
 }
 
