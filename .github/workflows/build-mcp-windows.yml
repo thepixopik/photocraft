@@ -1,0 +1,59 @@
+name: Build PhotoCraft MCP (Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build"
+        required: true
+        default: "feat/mcp-streamable-http"
+  push:
+    branches:
+      - main
+      - feat/mcp-streamable-http
+    paths:
+      - "crates/**"
+      - "apps/photocraft-cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_RELEASE_DEBUG: "0"
+      CARGO_TARGET_DIR: 'D:\t'
+      RUSTC_WRAPPER: ""
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref_name }}
+          persist-credentials: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          target-dir: 'D:\t'
+
+      - name: Build Full PhotoCraft MCP Studio
+        run: cargo build --locked --release -p photocraft-cli
+
+      - name: Smoke-test MCP CLI flags
+        run: D:\t\release\photocraft-cli.exe mcp --help
+
+      - name: Upload Windows MCP Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: photocraft-mcp-windows
+          path: D:\t\release\photocraft-cli.exe
+          if-no-files-found: error
+          retention-days: 30
