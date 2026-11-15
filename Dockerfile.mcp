@@ -1,0 +1,24 @@
+# Multi-stage container image for headless PhotoCraft Streamable HTTP MCP (`/mcp` & `/health`).
+FROM rust:bookworm AS builder
+
+WORKDIR /src
+RUN rustup update stable && rustup default stable
+COPY . .
+RUN cargo build --locked --release -p photocraft-cli
+
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 photocraft \
+    && mkdir -p /workspace \
+    && chown -R photocraft:photocraft /workspace
+
+COPY --from=builder /src/target/release/photocraft-cli /usr/local/bin/photocraft-cli
+
+USER photocraft
+WORKDIR /workspace
+EXPOSE 8788
+
+ENTRYPOINT ["photocraft-cli", "mcp", "--headless", "--no-gpu", "--automation-read-root", "/workspace", "--automation-write-root", "/workspace", "--http", "0.0.0.0:8788"]
