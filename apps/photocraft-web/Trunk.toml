@@ -1,10 +1,11 @@
-# Build with: trunk build --release   (from apps/photocraft-web)
 [build]
 target = "index.html"
 dist = "../../dist/web"
+# Relative URLs so the build works from any path (root, /photocraft/, CDN bucket) and in an iframe.
 public_url = "./"
 filehash = true
 
-[serve]
-addresses = ["127.0.0.1"]
-port = 8765
+[[hooks]]
+stage = "post_build"
+command = "python3"
+command_arguments = ["pack_wasm.py"]
