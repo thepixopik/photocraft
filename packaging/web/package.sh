@@ -14,7 +14,7 @@ if [[ "${1:-}" != "--skip-build" ]]; then
   (cd "$ROOT/apps/photocraft-web-boot" && trunk build --release)
 fi
 
-APP="$ROOT/dist/web"       # the app: index.html, wasm-bindgen glue, one .wasm
+APP="$ROOT/dist/web"       # the app: index.html, wasm-bindgen glue, snippets/, one .wasm
 BOOT="$ROOT/dist/web-boot" # the page that ships, and the module that starts the app from parts
 for site in "$APP" "$BOOT"; do
   [[ -f "$site/index.html" ]] || { echo "error: $site/index.html missing; run without --skip-build" >&2; exit 1; }
@@ -63,8 +63,13 @@ cp -R "$BOOT/." "$WORK/$NAME/"
 if [[ -d "$APP/icons" ]]; then
   cp -R "$APP/icons" "$WORK/$NAME/"
 fi
-# The boot module imports the app's glue by this fixed path.
+# The boot module imports the app's glue from app/photocraft-web.js, which in turn imports
+# wasm-bindgen JS snippets relative to itself (./snippets/... -> app/snippets/...).
 cp "$GLUE" "$WORK/$NAME/app/photocraft-web.js"
+if [[ -d "$APP/snippets" ]]; then
+  cp -R "$APP/snippets" "$WORK/$NAME/app/snippets"
+  cp -R "$APP/snippets" "$WORK/$NAME/snippets"
+fi
 
 gzip -9 -n -c "$WASM" | (cd "$WORK/$NAME/app" && split -b "$PART_BYTES" - "$STEM.part-")
 {
