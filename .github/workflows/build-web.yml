@@ -1,0 +1,67 @@
+name: Build PhotoCraft Web Bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "crates/**"
+      - "apps/photocraft-web/**"
+      - "apps/photocraft-web-boot/**"
+      - "assets/**"
+      - "packaging/web/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/build-web.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: Build Wasm Web Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable with wasm32 target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust & Workspace Crates
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          cache-workspace-crates: true
+          cache-on-failure: true
+
+      - name: Cache Trunk tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trunk
+          key: trunk-tools-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install Trunk bundler
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          curl -fsSL https://github.com/trunk-rs/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xzf - -C "$HOME/.cargo/bin" || cargo install trunk --locked
+          trunk --version
+
+      - name: Build & Package PhotoCraft Web (20 MiB chunks)
+        run: |
+          bash packaging/web/package.sh
+          mkdir -p dist/photo
+          cp -R dist/photocraft-web-*/* dist/photo/
+          ls -lh dist/photo dist/photo/app
+
+      - name: Upload PhotoCraft Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: the-allcraft-photo-web
+          path: dist/photo
+          retention-days: 14
